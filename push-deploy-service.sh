@@ -1,12 +1,7 @@
 #!/bin/bash
 
-# change this params depending on your env
-export CF_CLIENT_REPO=~/Desktop/Workspace/MTA/cf-java-client-sap
-export MULTIAPPS_REPO=~/Desktop/Workspace/MTA/multiapps
-export CONTROLLER_REPO=~/Desktop/Workspace/MTA/multiapps-controller
-export XSA_REPO=~/Desktop/Workspace/MTA/xsa-multiapps-controller
-export OUTPUTS=~/Desktop/Workspace/MTA/logs
-export DEPLOY_SERVICE_HOST="deploy-service-i530753"
+chmod +x set-params.sh
+. set-params.sh
 
 function main() {
     build_if_changed $CF_CLIENT_REPO
@@ -39,8 +34,7 @@ function build_if_changed() {
     local repo_location=$1
     local ignore_git_changes=$2
 
-    cd $repo_location
-    pwd
+    cd $repo_location || exit 1
     git status | grep "nothing to commit"
 
     if [[ $? -ne 0 ]] ; then
@@ -62,6 +56,10 @@ function mvn_clean_install() {
     echo "Running mvn clean install in ${location}"
     echo "The output is recorded to ${OUTPUTS}/${uuid}-mvn-output"
     mvn clean install >$OUTPUTS/$uuid-mvn-output
+    if [ $? -ne 0 ] ; then
+      echo "'mvn clean install' errored! Check ${OUTPUTS}/${uuid}-mvn-output for more information"
+      exit 1
+    fi
     echo "Finished mvn clean install"
 }
 
@@ -70,8 +68,12 @@ function push_deploy_service() {
     echo "Pushing deploy service"
     echo "The output is recorded to ${OUTPUTS}/${uuid}-cf-p-output"
     cf p -f "${XSA_REPO}/com.sap.cloud.lm.sl.xs2.web/target/manifests/manifest.yml" -n $DEPLOY_SERVICE_HOST -i 1 >$OUTPUTS/$uuid-cf-p-output
+    if [ $? -ne 0 ] ; then
+      echo "'cf push' errored! Check ${OUTPUTS}/${uuid}-cf-p-output for more information"
+      exit 1
+    fi
     echo "Finished cf push"
-    export DEPLOY_SERVICE_URL="${DEPLOY_SERVICE_HOST}.cfapps.sap.hana.ondemand.com"
+    export DEPLOY_SERVICE_URL="${DEPLOY_SERVICE_HOST}.${DEPLOY_SERVICE_DOMAIN}"
 }
 
 # run the script
